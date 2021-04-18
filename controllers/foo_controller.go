@@ -20,6 +20,7 @@ import (
 
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
@@ -81,4 +82,30 @@ func (r *FooReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&samplecontrollerv1alpha1.Foo{}).
 		Owns(&appsv1.Deployment{}).
 		Complete(r)
+}
+
+func (r *FooReconciler) cleanupOwnedResources(ctx context.Context, log logr.Logger, foo *samplecontrollerv1alpha1.Foo) error {
+	log.Info("finding existing Deployments for Foo resource")
+
+	var deployments appsv1.DeploymentList
+	if err := r.List(ctx, &deployments, client.InNamespace(foo.Namespace), client.MatchingFields(
+		map[string]string{deploymentOwnerKey: foo.Name},
+	)); err != nil {
+		return err
+	}
+
+	for _, deployment := range deployments.Items {
+		if deployment.Name == foo.Spec.DeploymentName {
+			continue
+		}
+		if err := r.Delete(ctx, &deployment); err != nil {
+			log.Error(err, "failed to delete Deployment resource")
+			return err
+		}
+
+		log.Info("delete deployment resource: " + deployment.Name)
+		r.Recorder.Eventf(foo, corev1.EventTypeNormal, "Deleted", "Deleted deployment %q", deployment.Name)
+	}
+
+	return nil
 }

@@ -28,7 +28,7 @@ type FooSpec struct {
 	// +kubebuilder:validation:Format:=string
 
 	// the name of deployment which is owned by foo
-	Deployment string `json:"deploymentName"`
+	DeploymentName string `json:"deploymentName"`
 
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Minimum=0
