@@ -109,6 +109,25 @@ func (r *FooReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return ctrl.Result{}, err
 	}
 
+	var deployment appsv1.Deployment
+	var deploymentNamespacedName = client.ObjectKey{Namespace: req.Namespace, Name: foo.Spec.DeploymentName}
+	if err := r.Get(ctx, deploymentNamespacedName, &deployment); err != nil {
+		log.Error(err, "unable to fetch Deployment")
+		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
+
+	availableReplicas := deployment.Status.AvailableReplicas
+	if availableReplicas == foo.Status.AvailableReplicas {
+		return ctrl.Result{}, nil
+	}
+	foo.Status.AvailableReplicas = availableReplicas
+
+	if err := r.Status().Update(ctx, &foo); err != nil {
+		log.Error(err, "unable to update Foo status")
+		return ctrl.Result{}, err
+	}
+	r.Recorder.Eventf(&foo, corev1.EventTypeNormal, "Updated", "Update foo.status.AvailableReplicas: %d", foo.Status.AvailableReplicas)
+
 	return ctrl.Result{}, nil
 }
 
