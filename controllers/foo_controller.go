@@ -19,6 +19,8 @@ import (
 	"context"
 
 	"github.com/go-logr/logr"
+	appsv1 "k8s.io/api/apps/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -41,16 +43,42 @@ type FooReconciler struct {
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
 
 func (r *FooReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
-	_ = context.Background()
-	_ = r.Log.WithValues("foo", req.NamespacedName)
+	ctx := context.Background()
+	log := r.Log.WithValues("foo", req.NamespacedName)
 
-	// your logic here
+	var foo samplecontrollerv1alpha1.Foo
+	log.Info("fetching Foo Resource")
+
+	if err := r.Get(ctx, req.NamespacedName, &foo); err != nil {
+		log.Error(err, "unable to fetch Foo")
+		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
 
 	return ctrl.Result{}, nil
 }
 
+var (
+	deploymentOwnerKey = ".metadata.controller"
+	apiGVStr           = samplecontrollerv1alpha1.GroupVersion.String()
+)
+
 func (r *FooReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	if err := mgr.GetFieldIndexer().IndexField(&appsv1.Deployment{}, deploymentOwnerKey, func(rawObj runtime.Object) []string {
+		deployment := rawObj.(*appsv1.Deployment)
+		owner := metav1.GetControllerOf(deployment)
+		if owner == nil {
+			return nil
+		}
+		if owner.APIVersion != apiGVStr || owner.Kind != "Foo" {
+			return nil
+		}
+
+		return []string{owner.Name}
+	}); err != nil {
+		return err
+	}
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&samplecontrollerv1alpha1.Foo{}).
+		Owns(&appsv1.Deployment{}).
 		Complete(r)
 }
