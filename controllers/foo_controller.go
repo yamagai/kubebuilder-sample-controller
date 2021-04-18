@@ -60,6 +60,55 @@ func (r *FooReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return ctrl.Result{}, err
 	}
 
+	deploymentName := foo.Spec.DeploymentName
+	deploy := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      deploymentName,
+			Namespace: req.Namespace,
+		},
+	}
+
+	if _, err := ctrl.CreateOrUpdate(ctx, r.Client, deploy, func() error {
+		replicas := int32(1)
+		if foo.Spec.Replicas != nil {
+			replicas = *foo.Spec.Replicas
+		}
+		deploy.Spec.Replicas = &replicas
+
+		labels := map[string]string{
+			"app":        "nginx",
+			"controller": req.Name,
+		}
+
+		if deploy.Spec.Selector == nil {
+			deploy.Spec.Selector = &metav1.LabelSelector{MatchLabels: labels}
+		}
+
+		if deploy.Spec.Template.ObjectMeta.Labels == nil {
+			deploy.Spec.Template.ObjectMeta.Labels = labels
+		}
+
+		containers := []corev1.Container{
+			{
+				Name:  "nginx",
+				Image: "nginx:latest",
+			},
+		}
+		if deploy.Spec.Template.Spec.Containers == nil {
+			deploy.Spec.Template.Spec.Containers = containers
+		}
+
+		if err := ctrl.SetControllerReference(&foo, deploy, r.Scheme); err != nil {
+			log.Error(err, "unable to set ownerReference from Foo to Deployment")
+			return err
+		}
+
+		return nil
+	}); err != nil {
+		log.Error(err, "unable to ensure deployment is correct")
+		return ctrl.Result{}, err
+	}
+
 	return ctrl.Result{}, nil
 }
 
