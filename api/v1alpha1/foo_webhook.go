@@ -16,7 +16,10 @@ limitations under the License.
 package v1alpha1
 
 import (
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 	ctrl "sigs.k8s.io/controller-runtime"
 	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
@@ -74,4 +77,25 @@ func (r *Foo) ValidateDelete() error {
 
 	// TODO(user): fill in your validation logic upon object deletion.
 	return nil
+}
+
+func (r *Foo) validateDeploymentName() *field.Error {
+	// object name must be no more than 253 characters.
+	if len(r.Spec.DeploymentName) > 253 {
+		return field.Invalid(field.NewPath("spec").Child("deploymentName"), r.Spec.DeploymentName, "must be no more than 253 characters")
+	}
+
+	return nil
+}
+
+func (r *Foo) validateFoo() error {
+	var allErrs field.ErrorList
+	if err := r.validateDeploymentName(); err != nil {
+		allErrs = append(allErrs, err)
+	}
+	if len(allErrs) == 0 {
+		return nil
+	}
+
+	return apierrors.NewInvalid(schema.GroupKind{Group: "samplecontroller.k8s.io", Kind: "Foo"}, r.Name, allErrs)
 }
