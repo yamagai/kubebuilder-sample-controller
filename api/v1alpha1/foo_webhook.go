@@ -60,7 +60,7 @@ func (r *Foo) ValidateCreate() error {
 	foolog.Info("validate create", "name", r.Name)
 
 	// TODO(user): fill in your validation logic upon object creation.
-	return nil
+	return r.validateFoo()
 }
 
 // ValidateUpdate implements webhook.Validator so a webhook will be registered for the type
@@ -68,7 +68,7 @@ func (r *Foo) ValidateUpdate(old runtime.Object) error {
 	foolog.Info("validate update", "name", r.Name)
 
 	// TODO(user): fill in your validation logic upon object update.
-	return nil
+	return r.validateFoo()
 }
 
 // ValidateDelete implements webhook.Validator so a webhook will be registered for the type
